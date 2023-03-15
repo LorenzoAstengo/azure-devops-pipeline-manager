@@ -4,7 +4,7 @@
 # Resources:
 #   - cd/CD
 #   - ci/CI
-#   - tg/task-group
+#   - tg/TG
 # Commands:
 #   - get <project> <resource-id> [optional: <output-dir>]: Get a resource from a given project
 #   - create <project> <input-json> : Create a resource from a given project
@@ -14,11 +14,19 @@
 #   - list <project> [optional: <resource-id>] : List all resources from a given project or get resource details if resource id is provided"
 #   - help : Show this help
 
-# Prerequisites: jq, az cli, openssl, base64, bc, curl, tar
+# Prerequisites: jq, az cli, openssl, base64, bc, curl, tar, tr
 
 # Get the command line arguments
-resource=$1
-resources=["cd","CD","ci","CI","tg","task-group"]
+url="dev.azure.com"
+resource=$(echo $1 | tr '[:lower:]' '[:upper:]')
+if [[ $resource == "CD" ]]; then
+    url="vsrm.dev.azure.com"
+fi
+declare -A resources 
+resources["CD"]="release/definitions"
+resources["CI"]="build/definitions"
+resources["TG"]="distributedtask/taskgroups"
+
 command=$2
 commands=["get","create","update","export-all","delete","list","settings","help"]
 
@@ -27,7 +35,7 @@ help='# Usage: pipeline.sh <resource> <command>
 # Resources:
 #   - cd/CD
 #   - ci/CI
-#   - tg/task-group
+#   - tg/TG
 # Commands:
 #   - get <project> <resource-id> [optional: <output-dir>] : Get a resource from a given project
 #   - create <project> <input-json> : Create a resource from a given project
@@ -38,7 +46,7 @@ help='# Usage: pipeline.sh <resource> <command>
 #   - settings : Set Azure DevOps organization and username and password
 #   - help : Show this help
 '
-if [[ -z $resource || ! $resources =~ $resource ]] ; then
+if [[ -z $resource || ! "${resources[$resource]+_}" ]] ; then
     echo "Resource is required!"
     echo "$help"
     exit 1
@@ -150,6 +158,7 @@ function show_progress {
 # Get resource
 function get(){
     echo "***** Parameters *****"
+    echo "Resource: $resource"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
@@ -180,21 +189,21 @@ function get(){
     local http_code=0
     if [[ $command == "get" ]];then
         # Get resource from project
-        echo "Getting resource $resource_id from project $project..."
+        echo "Getting $resource $resource_id from project $project..."
         while [[ $http_code != 200 ]] ; do
-            local p=$(curl -s --max-time 5 --location https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$resource_id?api-version=7.0 \
+            local p=$(curl -s --max-time 5 --location https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.0 \
             --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $p | awk '{print $NF}')
             local p=$(echo $p | awk '{$(NF--)=""; print}')
         done
-        local name=$(echo $p | jq .name | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
+        local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
         echo $p | jq . > $outputDir/$resource_id-$name.json
         echo "resource $resource_id from project $project saved in $outputDir/$resource_id-$name.json"
     else    
     # Get all resources from project
-        echo "Getting all resources from project $project..."
+        echo "Getting all $resource from project $project..."
         while [[ $http_code != 200 ]] ; do
-            local res=$(curl -s --max-time 5 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions?api-version=7.0" \
+            local res=$(curl -s --max-time 5 --location "https://$url/$org/$project/_apis/${resources[$resource]}?api-version=7.0" \
             --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $res | awk '{print $NF}')
             local res=$(echo $res | awk '{$(NF--)=""; print}')
@@ -202,22 +211,22 @@ function get(){
         local http_code=0
         nresources=$(echo $res | jq .count)
         local i=0
-        echo $res | for id in $(jq .value[].id )
+        echo $res | for id in $(jq .value[].id | sed -E 's;";;g' )
             do 
                 echo -ne "\rDownloading resource $id..."
                 show_progress $i $nresources
                 i=$((i+1))
                 while [[ $http_code != 200 ]] ; do
-                    local p=$(curl -s --max-time 3 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0" \
+                    local p=$(curl -s --max-time 3 --location "https://$url/$org/$project/_apis/${resources[$resource]}/$id?api-version=7.0" \
                     --header "Authorization: Basic $b64" -w " %{http_code}")
                     local http_code=$(echo $p | awk '{print $NF}')
                     local p=$(echo $p | awk '{$(NF--)=""; print}')
                 done 
-                local name=$(echo $p | jq .name | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
+                local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
                 echo $p | jq . > $outputDir/$id-$name.json 
                 local http_code=0
             done
-        echo "All resources from project $project saved in $outputDir"
+        echo "All $resource from project $project saved in $outputDir"
         if $bkp; then
             echo "Backing up resources..."
             local date=$(date +%Y%m%d%H%M%S)
@@ -234,6 +243,7 @@ function get(){
 # Create/Update resource
 function send(){
     echo "***** Parameters *****"
+    echo "Resource: $resource"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
@@ -255,7 +265,7 @@ function send(){
 
     if [[ $command == "update" ]]; then
         echo "Updating resource $id"
-        res=$(curl -s --location --request PUT https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0 \
+        res=$(curl -s --location --request PUT https://$url/$org/$project/_apis/${resources[$resource]}/$id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 200 ]]; then
@@ -266,7 +276,7 @@ function send(){
         fi
     elif [[ $command == "create" ]]; then
         echo "Creating resource $id"
-        res=$(curl -s --location --request POST https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0 \
+        res=$(curl -s --location --request POST https://$url/$org/$project/_apis/${resources[$resource]}/$id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 200 ]]; then
@@ -282,6 +292,7 @@ function send(){
 # Delete resource
 function delete(){
     echo "***** Parameters *****"
+    echo "Resource: $resource"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
@@ -293,7 +304,7 @@ function delete(){
     login
     local http_code=0
     while [[ $http_code != "200" ]] ; do
-        local res=$(curl -s --max-time 5 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions?api-version=7.0" \
+        local res=$(curl -s --max-time 5 --location "https://$url/$org/$project/_apis/${resources[$resource]}?api-version=7.0" \
         --header "Authorization: Basic $b64" -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         local res=$(echo $res | awk '{$(NF--)=""; print}')
@@ -302,7 +313,7 @@ function delete(){
     echo "Are you sure you want to delete resource $res? (y/n)"
     read -r answer
     if [[ $answer == "y" || $answer == "Y" || $answer == "yes" ]]; then
-        res=$(curl -s --location --request DELETE https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$resource_id?api-version=7.0 \
+        res=$(curl -s --location --request DELETE https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 204 ]]; then
@@ -320,6 +331,7 @@ function delete(){
 # List resources
 function list(){
     echo "***** Parameters *****"
+    echo "Resource: $resource"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
@@ -334,7 +346,7 @@ function list(){
     # Get resources from project
     echo "Getting resources from project $project..."
     while [[ $http_code != "200" ]] ; do
-        local res=$(curl -s --max-time 5 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions?api-version=7.0" \
+        local res=$(curl -s --max-time 5 --location "https://$url/$org/$project/_apis/${resources[$resource]}?api-version=7.0" \
         --header "Authorization: Basic $b64" -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         local res=$(echo $res | awk '{$(NF--)=""; print}')
@@ -416,10 +428,10 @@ org=$(grep org ~/$settings_file | cut -f 2 -d "=")
 check
 
 case $command in
-    "get"|"export-all")
+    "get" | "export-all")
         get
         ;;
-    "create" || "update")
+    "create" | "update")
         send
         ;;
     "delete")
