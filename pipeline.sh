@@ -6,12 +6,12 @@
 #   - ci/CI
 #   - tg/task-group
 # Commands:
-#   - get <project> <pipeline-id> [optional: <output-dir>]: Get a pipeline from a given project
-#   - create <project> <input-json> : Create a pipeline from a given project
-#   - update <project> <input-json> : Update a pipeline from a given project
-#   - export-all <project> <output-dir> [optional: <bkp>] : Export all pipelines from a given project
-#   - delete <project> <pipeline-id> : Delete a pipeline from a given project
-#   - list <project> [optional: <pipeline-id>] : List all pipelines from a given project or get pipeline details if pipeline id is provided"
+#   - get <project> <resource-id> [optional: <output-dir>]: Get a resource from a given project
+#   - create <project> <input-json> : Create a resource from a given project
+#   - update <project> <input-json> : Update a resource from a given project
+#   - export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project
+#   - delete <project> <resource-id> : Delete a resource from a given project
+#   - list <project> [optional: <resource-id>] : List all resources from a given project or get resource details if resource id is provided"
 #   - help : Show this help
 
 # Prerequisites: jq, az cli, openssl, base64, bc, curl, tar
@@ -29,12 +29,12 @@ help='# Usage: pipeline.sh <resource> <command>
 #   - ci/CI
 #   - tg/task-group
 # Commands:
-#   - get <project> <pipeline-id> [optional: <output-dir>] : Get a pipeline from a given project
-#   - create <project> <input-json> : Create a pipeline from a given project
-#   - update <project> <input-json> : Update a pipeline from a given project
-#   - export-all <project> <output-dir> [optional: <bkp>] : Export all pipelines from a given project, if bkp is provided, it will create a backup tar of the pipelines
-#   - delete <project> <pipeline-id> : Delete a pipeline from a given project
-#   - list <project> [optional: <pipeline-id>] : List all pipelines from a given project or if pipeline id is provided gets pipeline details 
+#   - get <project> <resource-id> [optional: <output-dir>] : Get a resource from a given project
+#   - create <project> <input-json> : Create a resource from a given project
+#   - update <project> <input-json> : Update a resource from a given project
+#   - export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project, if bkp is provided, it will create a backup tar of the resources
+#   - delete <project> <resource-id> : Delete a resource from a given project
+#   - list <project> [optional: <resource-id>] : List all resources from a given project or if resource id is provided gets resource details 
 #   - settings : Set Azure DevOps organization and username and password
 #   - help : Show this help
 '
@@ -60,8 +60,8 @@ function check(){
     case $command in
         "get") 
             if [[ $npar -lt 4 ]]; then
-                echo "Project and pipeline id are required"
-                echo "# Usage: pipeline.sh <resource> get <project> <pipeline-id> [optional: <output-dir>]"
+                echo "Project and resource id are required"
+                echo "# Usage: pipeline.sh <resource> get <project> <resource-id> [optional: <output-dir>]"
                 exit 1
             fi
             ;;
@@ -88,15 +88,15 @@ function check(){
             ;;
         "delete")
             if [[ $npar -lt 4 ]]; then
-                echo "Project and pipeline id are required"
-                echo "# Usage: pipeline.sh <resource> delete <project> <pipeline-id>"
+                echo "Project and resource id are required"
+                echo "# Usage: pipeline.sh <resource> delete <project> <resource-id>"
                 exit 1
             fi
             ;;
         "list")
             if [[ $npar -lt 3 ]]; then
                 echo "Project is required"
-                echo "# Usage: pipeline.sh <resource> list <project> [optional: <pipeline-id>]"
+                echo "# Usage: pipeline.sh <resource> list <project> [optional: <resource-id>]"
                 exit 1
             fi
             ;;
@@ -147,15 +147,15 @@ function show_progress {
 }
 
 
-# Get pipeline
+# Get resource
 function get(){
     echo "***** Parameters *****"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
     if [[ $command == "get" ]]; then
-        local pipeline_id=$(echo $par | cut -f 4 -d " ")
-        echo "PipelineID: $pipeline_id"
+        local resource_id=$(echo $par | cut -f 4 -d " ")
+        echo "Resource ID: $resource_id"
         local outputDir=$(echo $par | cut -f 5 -d " ")
         echo "Output Directory: $outputDir"
     else
@@ -179,20 +179,20 @@ function get(){
     login
     local http_code=0
     if [[ $command == "get" ]];then
-        # Get pipeline from project
-        echo "Getting pipeline $pipeline_id from project $project..."
+        # Get resource from project
+        echo "Getting resource $resource_id from project $project..."
         while [[ $http_code != 200 ]] ; do
-            local p=$(curl -s --max-time 5 --location https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$pipeline_id?api-version=7.0 \
+            local p=$(curl -s --max-time 5 --location https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$resource_id?api-version=7.0 \
             --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $p | awk '{print $NF}')
             local p=$(echo $p | awk '{$(NF--)=""; print}')
         done
         local name=$(echo $p | jq .name | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
-        echo $p | jq . > $outputDir/$pipeline_id-$name.json
-        echo "Pipeline $pipeline_id from project $project saved in $outputDir/$pipeline_id-$name.json"
+        echo $p | jq . > $outputDir/$resource_id-$name.json
+        echo "resource $resource_id from project $project saved in $outputDir/$resource_id-$name.json"
     else    
-    # Get all pipelines from project
-        echo "Getting all pipelines from project $project..."
+    # Get all resources from project
+        echo "Getting all resources from project $project..."
         while [[ $http_code != 200 ]] ; do
             local res=$(curl -s --max-time 5 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions?api-version=7.0" \
             --header "Authorization: Basic $b64" -w " %{http_code}")
@@ -200,12 +200,12 @@ function get(){
             local res=$(echo $res | awk '{$(NF--)=""; print}')
         done
         local http_code=0
-        npipelines=$(echo $res | jq .count)
+        nresources=$(echo $res | jq .count)
         local i=0
         echo $res | for id in $(jq .value[].id )
             do 
-                echo -ne "\rDownloading pipeline $id..."
-                show_progress $i $npipelines
+                echo -ne "\rDownloading resource $id..."
+                show_progress $i $nresources
                 i=$((i+1))
                 while [[ $http_code != 200 ]] ; do
                     local p=$(curl -s --max-time 3 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0" \
@@ -217,21 +217,21 @@ function get(){
                 echo $p | jq . > $outputDir/$id-$name.json 
                 local http_code=0
             done
-        echo "All pipelines from project $project saved in $outputDir"
+        echo "All resources from project $project saved in $outputDir"
         if $bkp; then
-            echo "Backing up pipelines..."
+            echo "Backing up resources..."
             local date=$(date +%Y%m%d%H%M%S)
             local bkpDir=$outputDir-$date
             mkdir -p $bkpDir
             mv $outputDir/*.json $bkpDir
             tar -cf $bkpDir.tar $bkpDir
             rm -rf $bkpDir $outputDir
-            echo "Pipelines backed up in $bkpDir.tar"
+            echo "resources backed up in $bkpDir.tar"
         fi
     fi
 }
 
-# Create/Update pipeline
+# Create/Update resource
 function send(){
     echo "***** Parameters *****"
     echo "Command: $command"
@@ -250,43 +250,43 @@ function send(){
     echo "Logging in to Azure DevOps..."
     login
 
-    #Get pipeline id from file
+    #Get resource id from file
     id=$(jq .id $input_file)
 
     if [[ $command == "update" ]]; then
-        echo "Updating pipeline $id"
+        echo "Updating resource $id"
         res=$(curl -s --location --request PUT https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 200 ]]; then
-            echo "Pipeline $id updated"
+            echo "resource $id updated"
         else
-            echo "Error updating pipeline $id"
+            echo "Error updating resource $id"
             echo $res
         fi
     elif [[ $command == "create" ]]; then
-        echo "Creating pipeline $id"
+        echo "Creating resource $id"
         res=$(curl -s --location --request POST https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 200 ]]; then
-            echo "Pipeline $id created"
+            echo "resource $id created"
         else
-            echo "Error creating pipeline $id"
+            echo "Error creating resource $id"
             echo $res
         fi
     fi
     
 }
 
-# Delete pipeline
+# Delete resource
 function delete(){
     echo "***** Parameters *****"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
-    local pipeline_id=$(echo $par | cut -f 4 -d " ")
-    echo "PipelineID: $pipeline_id"
+    local resource_id=$(echo $par | cut -f 4 -d " ")
+    echo "Resource ID: $resource_id"
     echo "**********************"
 
     echo "Logging in to Azure DevOps..."
@@ -298,17 +298,17 @@ function delete(){
         local http_code=$(echo $res | awk '{print $NF}')
         local res=$(echo $res | awk '{$(NF--)=""; print}')
     done
-    local res=$(echo $res | jq -r '.value[] | select(.id == '$pipeline_id') | "\(.id)-\(.name)"')
-    echo "Are you sure you want to delete pipeline $res? (y/n)"
+    local res=$(echo $res | jq -r '.value[] | select(.id == '$resource_id') | "\(.id)-\(.name)"')
+    echo "Are you sure you want to delete resource $res? (y/n)"
     read -r answer
     if [[ $answer == "y" || $answer == "Y" || $answer == "yes" ]]; then
-        res=$(curl -s --location --request DELETE https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$pipeline_id?api-version=7.0 \
+        res=$(curl -s --location --request DELETE https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions/$resource_id?api-version=7.0 \
          --header "Authorization: Basic $b64" --header "Content-Type: application/json" --data @$input_file -w " %{http_code}")
         local http_code=$(echo $res | awk '{print $NF}')
         if [[ $http_code == 204 ]]; then
-            echo "Pipeline $pipeline_id deleted successfully"
+            echo "resource $resource_id deleted successfully"
         else
-            echo "Error deleting pipeline $pipeline_id"
+            echo "Error deleting resource $resource_id"
             echo $res
         fi
     else
@@ -317,22 +317,22 @@ function delete(){
     fi    
 }
 
-# List pipelines
+# List resources
 function list(){
     echo "***** Parameters *****"
     echo "Command: $command"
     local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
-    local pipeline_id=$(echo $par | cut -f 4 -d " ")
-    echo "PipelineID: $pipeline_id"
+    local resource_id=$(echo $par | cut -f 4 -d " ")
+    echo "Resource ID: $resource_id"
     echo "**********************"
 
     echo "Logging in to Azure DevOps..."
     login
     local http_code=0
 
-    # Get pipelines from project
-    echo "Getting pipelines from project $project..."
+    # Get resources from project
+    echo "Getting resources from project $project..."
     while [[ $http_code != "200" ]] ; do
         local res=$(curl -s --max-time 5 --location "https://vsrm.dev.azure.com/$org/$project/_apis/release/definitions?api-version=7.0" \
         --header "Authorization: Basic $b64" -w " %{http_code}")
@@ -340,10 +340,10 @@ function list(){
         local res=$(echo $res | awk '{$(NF--)=""; print}')
     done
 
-    if [[ -z $pipeline_id ]]; then
+    if [[ -z $resource_id ]]; then
         echo $res | jq -r '.value[] | "\(.id)-\(.name)"'
     else
-        echo $res | jq -r '.value[] | select(.id == '$pipeline_id') | "\(.id)-\(.name)"'
+        echo $res | jq -r '.value[] | select(.id == '$resource_id') | "\(.id)-\(.name)"'
     fi    
 }
 
