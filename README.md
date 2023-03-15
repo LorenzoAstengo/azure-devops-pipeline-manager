@@ -13,7 +13,7 @@ Just clone the repository locally and then copy [pipeline.sh](http://pipeline.sh
 
 ## Usage
 
-[pipeline.sh](http://pipeline.sh/) <resource> <command>
+[pipeline.sh](http://pipeline.sh/) \<resource\> \<command\>
 
 ### Resources
 
@@ -23,12 +23,12 @@ Just clone the repository locally and then copy [pipeline.sh](http://pipeline.sh
 
 ### Commands:
 
-- get <project> <resource-id> [optional: <output-dir>]: Get a resource from a given project
-- create <project> <input-json> : Create a resource from a given project
-- update <project> <input-json> : Update a resource from a given project
-- export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project
-- delete <project> <resource-id> : Delete a resource from a given project
-- list <project> [optional: <resource-id>] : List all resources from a given project or get resource details if resource id is provided"
+- get \<project\> \<resource-id\> [optional: \<output-dir\>]: Get a resource from a given project
+- create \<project\> \<input-json\> : Create a resource from a given project
+- update \<project\> \<input-json\> : Update a resource from a given project
+- export-all \<project\> \<output-dir\> [optional: \<bkp\>] : Export all resources from a given project
+- delete \<project\> \<resource-id\> : Delete a resource from a given project
+- list \<project\> [optional: \<resource-id\>] : List all resources from a given project or get resource details if resource id is provided"
 - help : Show this message
 
 ## Prerequisites
