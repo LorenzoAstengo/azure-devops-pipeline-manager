@@ -1,6 +1,10 @@
 #!/bin/bash
 # This script is useful to manage Azure DevOps pipelines
-# Usage: pipeline.sh <command> 
+# Usage: pipeline.sh <resource> <command> 
+# Resources:
+#   - cd/CD
+#   - ci/CI
+#   - tg/task-group
 # Commands:
 #   - get <project> <pipeline-id> [optional: <output-dir>]: Get a pipeline from a given project
 #   - create <project> <input-json> : Create a pipeline from a given project
@@ -12,10 +16,18 @@
 
 # Prerequisites: jq, az cli, openssl, base64, bc, curl, tar
 
-# Get the command
-command=$1
+# Get the command line arguments
+resource=$1
+resources=["cd","CD","ci","CI","tg","task-group"]
+command=$2
+commands=["get","create","update","export-all","delete","list","settings","help"]
 
-help='# Usage: pipeline.sh <command>
+help='# Usage: pipeline.sh <resource> <command>
+
+# Resources:
+#   - cd/CD
+#   - ci/CI
+#   - tg/task-group
 # Commands:
 #   - get <project> <pipeline-id> [optional: <output-dir>] : Get a pipeline from a given project
 #   - create <project> <input-json> : Create a pipeline from a given project
@@ -26,11 +38,17 @@ help='# Usage: pipeline.sh <command>
 #   - settings : Set Azure DevOps organization and username and password
 #   - help : Show this help
 '
-
-if [[ -z $command || $command == "help" ]] ; then
+if [[ -z $resource || ! $resources =~ $resource ]] ; then
+    echo "Resource is required!"
+    echo "$help"
+    exit 1
+elif [[ -z $command || ! $commands =~ $command ]] ; then
     echo "Command is required!"
     echo "$help"
     exit 1
+elif [[ $command == "help" ]] ; then
+    echo "$help"
+    exit 0
 fi
 
 par=$@
@@ -39,43 +57,50 @@ settings_file=".az-pipeline.conf"
 
 # Check number of parameters
 function check(){
-    if [[ $command == "get" ]]; then
-        if [[ $npar -lt 3 ]]; then
-            echo "Project and pipeline id are required"
-            echo "# Usage: pipeline.sh get <project> <pipeline-id> [optional: <output-dir>]"
-            exit 1
-        fi
-    elif [[ $command == "create" ]]; then
-        if [[ $npar -lt 3 ]]; then
-            echo "Project, input json and mode are required"
-            echo "# Usage: pipeline.sh create <project> <input-json>"
-            exit 1
-        fi
-    elif [[ $command == "update" ]]; then
-        if [[ $npar -lt 3 ]]; then
-            echo "Project, input json and mode are required"
-            echo "# Usage: pipeline.sh update <project> <input-json>"
-            exit 1
-        fi
-    elif [[ $command == "export-all" ]]; then
-        if [[ $npar -lt 3 ]]; then
-            echo "Project and output dir are required"
-            echo "# Usage: pipeline.sh export-all <project> <output-dir>"
-            exit 1
-        fi
-    elif [[ $command == "delete" ]]; then
-        if [[ $npar -lt 3 ]]; then
-            echo "Project and pipeline id are required"
-            echo "# Usage: pipeline.sh delete <project> <pipeline-id>"
-            exit 1
-        fi
-    elif [[ $command == "list" ]]; then
-        if [[ $npar -lt 2 ]]; then
-            echo "Project is required"
-            echo "# Usage: pipeline.sh list <project> [optional: <pipeline-id>]"
-            exit 1
-        fi
-    fi
+    case $command in
+        "get") 
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and pipeline id are required"
+                echo "# Usage: pipeline.sh <resource> get <project> <pipeline-id> [optional: <output-dir>]"
+                exit 1
+            fi
+            ;;
+        "create")
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and input json are required"
+                echo "# Usage: pipeline.sh <resource> create <project> <input-json>"
+                exit 1
+            fi
+            ;;
+        "update")
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and input json are required"
+                echo "# Usage: pipeline.sh <resource> update <project> <input-json>"
+                exit 1
+            fi
+            ;;
+        "export-all")
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and output dir are required"
+                echo "# Usage: pipeline.sh <resource> export-all <project> <output-dir>"
+                exit 1
+            fi
+            ;;
+        "delete")
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and pipeline id are required"
+                echo "# Usage: pipeline.sh <resource> delete <project> <pipeline-id>"
+                exit 1
+            fi
+            ;;
+        "list")
+            if [[ $npar -lt 3 ]]; then
+                echo "Project is required"
+                echo "# Usage: pipeline.sh <resource> list <project> [optional: <pipeline-id>]"
+                exit 1
+            fi
+            ;;
+    esac
 }
 
 # Azure DevOps login
@@ -126,17 +151,17 @@ function show_progress {
 function get(){
     echo "***** Parameters *****"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 2 -d " ")
+    local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
     if [[ $command == "get" ]]; then
-        local pipeline_id=$(echo $par | cut -f 3 -d " ")
+        local pipeline_id=$(echo $par | cut -f 4 -d " ")
         echo "PipelineID: $pipeline_id"
-        local outputDir=$(echo $par | cut -f 4 -d " ")
+        local outputDir=$(echo $par | cut -f 5 -d " ")
         echo "Output Directory: $outputDir"
     else
-        local outputDir=$(echo $par | cut -f 3 -d " ")
+        local outputDir=$(echo $par | cut -f 4 -d " ")
         echo "Output Directory: $outputDir"
-        if [[ $(echo $par | cut -f 4 -d " ") == "bkp" ]]; then
+        if [[ $(echo $par | cut -f 5 -d " ") == "bkp" ]]; then
             local bkp=true            
         else
             local bkp=false
@@ -210,9 +235,9 @@ function get(){
 function send(){
     echo "***** Parameters *****"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 2 -d " ")
+    local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
-    local input_file=$(echo $par | cut -f 3 -d " ")
+    local input_file=$(echo $par | cut -f 4 -d " ")
     echo "Input file: $input_file"
     echo "**********************"
 
@@ -258,9 +283,9 @@ function send(){
 function delete(){
     echo "***** Parameters *****"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 2 -d " ")
+    local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
-    local pipeline_id=$(echo $par | cut -f 3 -d " ")
+    local pipeline_id=$(echo $par | cut -f 4 -d " ")
     echo "PipelineID: $pipeline_id"
     echo "**********************"
 
@@ -296,9 +321,9 @@ function delete(){
 function list(){
     echo "***** Parameters *****"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 2 -d " ")
+    local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
-    local pipeline_id=$(echo $par | cut -f 3 -d " ")
+    local pipeline_id=$(echo $par | cut -f 4 -d " ")
     echo "PipelineID: $pipeline_id"
     echo "**********************"
 
@@ -390,28 +415,25 @@ fi
 org=$(grep org ~/$settings_file | cut -f 2 -d "=")
 check
 
-if [[ $command == "get" || $command == "export-all" ]]; then
-    get 
-elif [[ $command == "create" || $command == "update" ]]; then
-    send 
-elif [[ $command == "delete" ]]; then
-    delete 
-elif [[ $command == "list" ]]; then
-    list 
-elif [[ $command == "settings" ]]; then
-    settings
-else
-    echo "Command not found!"
-    echo "$help"
-    exit 1
-fi
-
-
-
-
-
-
-
-
-
-
+case $command in
+    "get"|"export-all")
+        get
+        ;;
+    "create" || "update")
+        send
+        ;;
+    "delete")
+        delete
+        ;;
+    "list")
+        list
+        ;;
+    "settings")
+        settings
+        ;;
+    *)
+        echo "Command not found!"
+        echo "$help"
+        exit 1
+        ;;
+esac
