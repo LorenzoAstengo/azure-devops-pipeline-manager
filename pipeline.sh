@@ -329,8 +329,8 @@ function settings(){
         echo "***** Settings *****"
         echo "Choose:"
         echo "1) Set Azure DevOps organization"
-        echo "2) Set Azure DevOps username"
-        echo "3) Set Azure DevOps password"
+        # echo "2) Set Azure DevOps username"
+        # echo "3) Set Azure DevOps password"
         # echo "4) Create Service Principal"
         echo "4) Exit"
         echo "*********************"
@@ -344,24 +344,24 @@ function settings(){
             else
                 echo "org=$org" >> ~/$settings_file
             fi
-        elif [[ $option == "2" ]]; then
-            read -p "Enter Azure DevOps username: " username
-            grep -q username ~/$settings_file
-            if [[ $? == 0 ]]; then
-                sed -i "s;username=.*;username=$username;" ~/$settings_file
-            else
-                echo "username=$username" >> ~/$settings_file
-            fi
-        elif [[ $option == "3" ]]; then
-            read -sp "Enter Azure DevOps password: " password
-            local pwd=$(echo $password | openssl enc -aes-256-cbc -md sha512 -a -pbkdf2 -iter 100000 -salt -pass pass:'FH=32feghrI%ie£"h32t38')
-            grep -q password ~/$settings_file
-            if [[ $? == 0 ]]; then
-                sed -i "s;password=.*;password=$pwd;" ~/$settings_file
-            else
-                echo "password=$pwd" >> ~/$settings_file
-            fi
-            echo ""
+        # elif [[ $option == "2" ]]; then
+        #     read -p "Enter Azure DevOps username: " username
+        #     grep -q username ~/$settings_file
+        #     if [[ $? == 0 ]]; then
+        #         sed -i "s;username=.*;username=$username;" ~/$settings_file
+        #     else
+        #         echo "username=$username" >> ~/$settings_file
+        #     fi
+        # elif [[ $option == "3" ]]; then
+        #     read -sp "Enter Azure DevOps password: " password
+        #     local pwd=$(echo $password | openssl enc -aes-256-cbc -md sha512 -a -pbkdf2 -iter 100000 -salt -pass pass:'FH=32feghrI%ie£"h32t38')
+        #     grep -q password ~/$settings_file
+        #     if [[ $? == 0 ]]; then
+        #         sed -i "s;password=.*;password=$pwd;" ~/$settings_file
+        #     else
+        #         echo "password=$pwd" >> ~/$settings_file
+        #     fi
+        #     echo ""
         # elif [[ $option == "4" ]]; then
         #     az login &> /dev/null
         #     servicePrincipalName="Pipeline-manager"
