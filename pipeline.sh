@@ -223,7 +223,7 @@ function get(){
                     local p=$(echo $p | awk '{$(NF--)=""; print}')
                 done 
                 local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
-                echo $p | jq . > $outputDir/$id-$name.json 
+                echo $p |  jq 'if (.value != null) then .value[] else . end' > $outputDir/$id-$name.json 
                 local http_code=0
             done
         echo "All $resource from project $project saved in $outputDir"
@@ -261,7 +261,7 @@ function send(){
     login
 
     #Get resource id from file
-    id=$(jq .id $input_file)
+    id=$(cat $input_file | jq 'if (.id != null) then .id elif (.value[].id != null) then .value[].id else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
 
     if [[ $command == "update" ]]; then
         echo "Updating resource $id"
