@@ -197,7 +197,7 @@ function get(){
             local p=$(echo $p | awk '{$(NF--)=""; print}')
         done
         local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
-        echo $p | jq . > $outputDir/$resource_id-$name.json
+        echo $p |  jq 'if (.value != null) then .value[] else . end' > $outputDir/$resource_id-$name.json
         echo "resource $resource_id from project $project saved in $outputDir/$resource_id-$name.json"
     else    
     # Get all resources from project
