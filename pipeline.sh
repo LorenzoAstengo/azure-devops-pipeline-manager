@@ -113,17 +113,22 @@ function check(){
 
 # Azure DevOps login
 function login(){
-    # if [[ ! -e ~/"$settings_file" || $(grep "username" ~/"$settings_file") == "" || $(grep "password" ~/"$settings_file") == "" ]] ; then
-    #     az login &> /dev/null
-    # else
-    #     local username=$(cat ~/"$settings_file" | grep "username" | sed 's/username=//')
-    #     local password=$(cat ~/"$settings_file" | grep "password" | sed 's/password=//' | openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 100000 -salt -pass pass:'FH=32feghrI%ie£"h32t38')
-    #     echo $username
-    #     echo $password 
-    #     az login --username $username --password $password 
-    # fi
-    az login &> /dev/null
-    local token=$(az account get-access-token --query accessToken -o tsv)
+    if [[ ! -e ~/"$settings_file" || $(grep "username" ~/"$settings_file") == "" || $(grep "password" ~/"$settings_file") == "" ]] ; then
+        az login &> /dev/null
+    else
+        local username=$(cat ~/"$settings_file" | grep "username" | sed 's/username=//')
+        local password=$(cat ~/"$settings_file" | grep "password" | sed 's/password=//' | openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 100000 -salt -pass pass:'FH=32feghrI%ie£"h32t38')
+        echo $username
+        echo $password 
+        az login --username $username --password $password 
+    fi
+    token=$(az account get-access-token --query accessToken -o tsv | tr -d '\r')
+    b64=$(printf "%s"":$token" | base64 -w 0)
+}
+
+# Azure DevOps refresh login
+function refresh_token(){
+    token=$(az account get-access-token --query accessToken -o tsv | tr -d '\r')
     b64=$(printf "%s"":$token" | base64 -w 0)
 }
 
@@ -184,29 +189,27 @@ function get(){
     else
         mkdir -p $outputDir
     fi
-    echo "Logging in to Azure DevOps..."
-    login
+    refresh_token
     local http_code=0
     if [[ $command == "get" ]];then
         # Get resource from project
         echo "Getting $resource $resource_id from project $project..."
         while [[ $http_code != 200 ]] ; do
-            local p=$(curl -s --max-time 5 --location https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.0 \
-            --header "Authorization: Basic $b64" -w " %{http_code}")
+            local p=$(curl -s --max-time 5 --location https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.1 --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $p | awk '{print $NF}')
-            local p=$(echo $p | awk '{$(NF--)=""; print}')
+            # local p=$(echo $p | awk '{$(NF--)=""; print}')
         done
         local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
         echo $p |  jq 'if (.value != null) then .value[] else . end' > $outputDir/$resource_id-$name.json
-        echo "resource $resource_id from project $project saved in $outputDir/$resource_id-$name.json"
+        echo "resource $resource_id from project $project saved iecho n $outputDir/$resource_id-$name.json"
     else    
     # Get all resources from project
         echo "Getting all $resource from project $project..."
         while [[ $http_code != 200 ]] ; do
-            local res=$(curl -s --max-time 5 --location "https://$url/$org/$project/_apis/${resources[$resource]}?api-version=7.0" \
-            --header "Authorization: Basic $b64" -w " %{http_code}")
+            local p=$(curl -s --max-time 5 --location https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.1 --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $res | awk '{print $NF}')
-            local res=$(echo $res | awk '{$(NF--)=""; print}')
+            # local res=$(echo $res | awk '{$(NF--)=""; print}')
+            local res=$p
         done
         local http_code=0
         nresources=$(echo $res | jq .count)
@@ -257,8 +260,7 @@ function send(){
         echo "$input_file does not exist."
         exit 1
     fi
-    echo "Logging in to Azure DevOps..."
-    login
+    refresh_token
 
     #Get resource id from file
     id=$(cat $input_file | jq 'if (.id != null) then .id elif (.value[].id != null) then .value[].id else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
@@ -300,8 +302,7 @@ function delete(){
     echo "Resource ID: $resource_id"
     echo "**********************"
 
-    echo "Logging in to Azure DevOps..."
-    login
+    refresh_token
     local http_code=0
     while [[ $http_code != "200" ]] ; do
         local res=$(curl -s --max-time 5 --location "https://$url/$org/$project/_apis/${resources[$resource]}?api-version=7.0" \
@@ -339,8 +340,7 @@ function list(){
     echo "Resource ID: $resource_id"
     echo "**********************"
 
-    echo "Logging in to Azure DevOps..."
-    login
+    refresh_token
     local http_code=0
 
     # Get resources from project
@@ -424,8 +424,10 @@ if [ ! -e ~/"$settings_file" ] ; then
     settings
 fi
 
-org=$(grep org ~/$settings_file | cut -f 2 -d "=")
+#org=$(grep org ~/$settings_file | cut -f 2 -d "=")
+org=Leonardo-Cybersecurity
 check
+login
 
 case $command in
     "get" | "export-all")
