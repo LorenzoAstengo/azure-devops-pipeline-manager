@@ -40,7 +40,7 @@ help='# Usage: pipeline.sh <resource> <command>
 #   - get <project> <resource-id> [optional: <output-dir>] : Get a resource from a given project
 #   - create <project> <input-json> : Create a resource from a given project
 #   - update <project> <input-json> : Update a resource from a given project
-#   - export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project, if bkp is provided, it will create a backup tar of the resources
+#   - export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project and creates a summary.csv file, if bkp is provided, it will create a backup tar of the resources
 #   - delete <project> <resource-id> : Delete a resource from a given project
 #   - list <project> [optional: <resource-id>] : List all resources from a given project or if resource id is provided gets resource details 
 #   - settings : Set Azure DevOps organization and username and password
@@ -205,6 +205,7 @@ function get(){
     else    
     # Get all resources from project
         echo "Getting all $resource from project $project..."
+        echo "Date: $(date)"\; Project: $project\; Resource: $resource > $outputDir/summary.csv
         while [[ $http_code != 200 ]] ; do
             local p=$(curl -s --max-time 5 --location https://$url/$org/$project/_apis/${resources[$resource]}/$resource_id?api-version=7.1 --header "Authorization: Basic $b64" -w " %{http_code}")
             local http_code=$(echo $res | awk '{print $NF}')
@@ -227,6 +228,7 @@ function get(){
                 done 
                 local name=$(echo $p | jq 'if (.name != null) then .name elif (.value[].name != null) then .value[].name else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
                 echo $p |  jq 'if (.value != null) then .value[] else . end' > $outputDir/$id-$name.json 
+                echo "$id-$name" >> $outputDir/summary.csv
                 local http_code=0
             done
         echo "All $resource from project $project saved in $outputDir"
