@@ -28,7 +28,7 @@ resources["CI"]="build/definitions"
 resources["TG"]="distributedtask/taskgroups"
 
 command=$2
-commands=["get","create","update","export-all","delete","list","settings","help"]
+commands=["get","create","update","export-all","update-all","delete","list","settings","help"]
 
 help='# Usage: pipeline.sh <resource> <command>
 
@@ -40,7 +40,8 @@ help='# Usage: pipeline.sh <resource> <command>
 #   - get <project> <resource-id> [optional: <output-dir>] : Get a resource from a given project
 #   - create <project> <input-json> : Create a resource from a given project
 #   - update <project> <input-json> : Update a resource from a given project
-#   - export-all <project> <output-dir> [optional: <bkp>] : Export all resources from a given project and creates a summary.csv file, if bkp is provided, it will create a backup tar of the resources
+#   - update-all <project> <directory> : Update all resources from a given project
+#   - export-all <project> <output-directory> [optional: <bkp>] : Export all resources from a given project and creates a summary.csv file, if bkp is provided, it will create a backup tar of the resources
 #   - delete <project> <resource-id> : Delete a resource from a given project
 #   - list <project> [optional: <resource-id>] : List all resources from a given project or if resource id is provided gets resource details 
 #   - settings : Set Azure DevOps organization and username and password
@@ -84,6 +85,13 @@ function check(){
             if [[ $npar -lt 4 ]]; then
                 echo "Project and input json are required"
                 echo "# Usage: pipeline.sh <resource> update <project> <input-json>"
+                exit 1
+            fi
+            ;;
+        "update-all")
+            if [[ $npar -lt 4 ]]; then
+                echo "Project and directory are required"
+                echo "# Usage: pipeline.sh <resource> update-all <project> <directory>"
                 exit 1
             fi
             ;;
@@ -165,7 +173,7 @@ function get(){
     echo "***** Parameters *****"
     echo "Resource: $resource"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 3 -d " ")
+    
     echo "Project: $project"
     if [[ $command == "get" ]]; then
         local resource_id=$(echo $par | cut -f 4 -d " ")
@@ -245,12 +253,35 @@ function get(){
     fi
 }
 
-# Create/Update resource
-function send(){
+# Update all resources from directory
+function update_all(){
+    echo "***** Parameters *****"
+    echo "Resource: $resource"
+    echo "Command: $command"    
+    
+    echo "Project: $project"
+    local directory=$(echo $par | cut -f 4 -d " ")
+    echo "Directory: $directory"
+    echo "**********************"
+    
+    if [ -d "$directory" ]; then
+        echo "$directory does exist."
+        else
+        echo "$directory does not exist."
+        exit 1
+    fi
+
+    command="update"
+    
+    for f in $(ls $directory/*.json); do
+        send $f
+    done
+}
+
+function create-update(){
     echo "***** Parameters *****"
     echo "Resource: $resource"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 3 -d " ")
     echo "Project: $project"
     local input_file=$(echo $par | cut -f 4 -d " ")
     echo "Input file: $input_file"
@@ -263,7 +294,13 @@ function send(){
         exit 1
     fi
     refresh_token
+    send $input_file
+}
 
+# Create/Update resource
+function send(){
+
+    input_file=$1
     #Get resource id from file
     id=$(cat $input_file | jq 'if (.id != null) then .id elif (.value[].id != null) then .value[].id else "" end' | sed -E 's;";;g' | sed -E 's;\/;_;g' | sed -E 's; ;_;g')
 
@@ -298,7 +335,7 @@ function delete(){
     echo "***** Parameters *****"
     echo "Resource: $resource"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 3 -d " ")
+    
     echo "Project: $project"
     local resource_id=$(echo $par | cut -f 4 -d " ")
     echo "Resource ID: $resource_id"
@@ -336,7 +373,7 @@ function list(){
     echo "***** Parameters *****"
     echo "Resource: $resource"
     echo "Command: $command"
-    local project=$(echo $par | cut -f 3 -d " ")
+    
     echo "Project: $project"
     local resource_id=$(echo $par | cut -f 4 -d " ")
     echo "Resource ID: $resource_id"
@@ -430,13 +467,17 @@ fi
 org=Leonardo-Cybersecurity
 check
 login
+project=$(echo $par | cut -f 3 -d " ")
 
 case $command in
     "get" | "export-all")
         get
         ;;
     "create" | "update")
-        send
+        create-update
+        ;;
+    "update-all")
+        update_all
         ;;
     "delete")
         delete
